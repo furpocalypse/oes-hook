@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "oes-hook"
+version = "0.1.0"
+description = "OES hooks library"
+license = "LGPL-3.0-or-later"
+authors = [
+    "Wes <wes@anthronewengland.com>"
+]
+readme = "README.md"
+packages = [
+    { include = "oes", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.11"
+attrs = "^22.2.0"
+cattrs = "^22.2.0"
+orjson = "^3.8.10"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.0"
+pytest-asyncio = "^0.21.0"
+pytest-cov = "^4.0.0"
+coverage = "^7.2.3"
+httpx = "^0.24.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
