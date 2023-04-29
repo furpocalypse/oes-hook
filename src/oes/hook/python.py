@@ -2,37 +2,42 @@
 import asyncio
 import importlib
 from collections.abc import Callable, Coroutine, Sequence
-from typing import Any, Optional, Union
+from typing import Any
 
-from attrs import Factory, field, frozen
+from attrs import frozen
 
-from oes.hook.types import Body, Hook, InvokeOptions
+from oes.hook.types import AsyncHook, Hook, SyncHook
 
 
 @frozen
-class PythonHook(Hook):
+class PythonHookConfig:
     """Python function hook."""
 
     python: str
     """Path to the python object, formatted as module:object."""
 
-    _object: Callable[
-        [Body], Union[Optional[Body], Coroutine[None, None, Optional[Body]]]
-    ] = field(
-        eq=False, default=Factory(lambda h: import_object(h.python), takes_self=True)
-    )
-    """The imported object."""
 
-    async def invoke(self, body: Body, options: InvokeOptions) -> Body:
-        if asyncio.iscoroutinefunction(self._object):
-            result = await self._object(body)
-        else:
-            loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(
-                options.config.executor, self._object, body
-            )
+def _make_async_hook(obj: Callable[[Any], Coroutine[None, None, Any]]) -> AsyncHook:
+    async def hook(body: Any) -> Any:
+        return await obj(body)
 
-        return result if result is not None else {}
+    return hook
+
+
+def _make_sync_hook(obj: Callable[[Any], Any]) -> SyncHook:
+    def hook(body: Any) -> Any:
+        return obj(body)
+
+    return hook
+
+
+def python_hook_factory(config: PythonHookConfig) -> Hook:
+    """Create a Python hook."""
+    obj = import_object(config.python)
+    if asyncio.iscoroutinefunction(obj):
+        return _make_async_hook(obj)
+    else:
+        return _make_sync_hook(obj)
 
 
 def parse_module_path(path: str) -> tuple[str, Sequence[str]]:
@@ -70,7 +75,7 @@ def get_object(src: object, path: Sequence[str]) -> Any:
 
 def import_object(
     path: str,
-) -> Callable[[Body], Union[Optional[Body], Coroutine[None, None, Optional[Body]]]]:
+) -> Callable[[Any], Any]:
     """Import an object by a path."""
     module_name, obj_path = parse_module_path(path)
     module = import_module(module_name)

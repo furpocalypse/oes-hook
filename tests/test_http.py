@@ -1,13 +1,13 @@
-import copy
-from typing import Any, cast
+import asyncio
+from typing import Any
 
 import httpx
 import orjson
 import pytest
 import pytest_asyncio
 
-from oes.hook.http import HttpHook
-from oes.hook.types import Config, HttpFunc, InvokeOptions
+from oes.hook import HttpHookConfig, http_hook_factory
+from oes.hook.http import HttpFunc
 
 
 def mock_handler(request: httpx.Request):
@@ -23,18 +23,24 @@ def mock_handler(request: httpx.Request):
 
 
 @pytest_asyncio.fixture
-async def client():
+async def async_client():
     mounts = {"all://": httpx.MockTransport(mock_handler)}
     async with httpx.AsyncClient(mounts=mounts) as client:
         yield client
 
 
 @pytest.fixture
-def http_func(client: httpx.AsyncClient) -> HttpFunc:
-    async def http_func(body: dict[str, Any], config: InvokeOptions) -> dict[str, Any]:
-        hook = cast(HttpHook, config.hook)
-        res = await client.post(
-            hook.url,
+def client():
+    mounts = {"all://": httpx.MockTransport(mock_handler)}
+    with httpx.Client(mounts=mounts) as client:
+        yield client
+
+
+@pytest.fixture
+def async_http_func(async_client: httpx.AsyncClient) -> HttpFunc:
+    async def http_func(body: dict[str, Any], config: HttpHookConfig) -> dict[str, Any]:
+        res = await async_client.post(
+            config.url,
             json=body,
         )
         json = res.json()
@@ -44,28 +50,29 @@ def http_func(client: httpx.AsyncClient) -> HttpFunc:
 
 
 @pytest.fixture
-def config(http_func: HttpFunc):
-    return Config(http_func=http_func)
+def http_func(client: httpx.Client) -> HttpFunc:
+    def http_func(body: dict[str, Any], config: HttpHookConfig) -> dict[str, Any]:
+        res = client.post(
+            config.url,
+            json=body,
+        )
+        json = res.json()
+        return json
+
+    return http_func
 
 
 @pytest.mark.asyncio
-async def test_http(config: Config):
-    hook = HttpHook("https://example.com/hook")
-    invoke_config = InvokeOptions(hook=hook, config=config)
-    res = await hook.invoke({"test": 1}, invoke_config)
+async def test_http(async_http_func: HttpFunc):
+    config = HttpHookConfig("https://example.com/hook", async_http_func)
+    hook = http_hook_factory(config)
+    assert asyncio.iscoroutinefunction(hook)
+    res = await hook({"test": 1})
     assert res == {"test": 2}
 
 
-@pytest.mark.asyncio
-async def test_http_sync():
-    def http_func(config: InvokeOptions, body: dict[str, Any]) -> dict[str, Any]:
-        new_dict = copy.deepcopy(body)
-        new_dict["test"] = new_dict.get("test", 0) + 1
-        return new_dict
-
-    config = Config(http_func=http_func)
-
-    hook = HttpHook("https://example.com/hook")
-    invoke_config = InvokeOptions(hook=hook, config=config)
-    res = await hook.invoke({"test": 1}, invoke_config)
+def test_http_sync(http_func: HttpFunc):
+    config = HttpHookConfig("https://example.com/hook", http_func)
+    hook = http_hook_factory(config)
+    res = hook({"test": 1})
     assert res == {"test": 2}

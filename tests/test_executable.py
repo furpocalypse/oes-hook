@@ -2,30 +2,28 @@ from pathlib import Path
 
 import pytest
 
-from oes.hook.executable import ExecutableHook
-from oes.hook.types import Config, InvokeOptions
+from oes.hook import ExecutableHookConfig, executable_hook_factory
 
 
-@pytest.fixture
-def config():
-    return Config(http_func=lambda c, b: b)
-
-
-@pytest.mark.asyncio
-async def test_executable(config: Config):
-    hook = ExecutableHook(
-        executable=Path("/bin/sh"), args=("-c", 'echo "{\\"test\\": true}"')
+def test_executable():
+    hook = executable_hook_factory(
+        ExecutableHookConfig(
+            executable=Path("/bin/sh"),
+            args=("-c", 'echo "{\\"test\\": true}"'),
+        )
     )
-    invoke_config = InvokeOptions(hook=hook, config=config)
-    res = await hook.invoke({"test": False}, invoke_config)
+
+    res = hook({"test": False})
+    assert res == {"test": True}
+
     assert res == {"test": True}
 
 
-@pytest.mark.asyncio
-async def test_executable_json_parse(config: Config):
-    hook = ExecutableHook(executable=Path("/bin/sh"), args=("-c", "cat"))
-    invoke_config = InvokeOptions(hook=hook, config=config)
-    res = await hook.invoke({"test": 123}, invoke_config)
+def test_executable_json_parse():
+    hook = executable_hook_factory(
+        ExecutableHookConfig(executable=Path("/bin/sh"), args=("-c", "cat"))
+    )
+    res = hook({"test": 123})
     assert res == {"test": 123}
 
 
@@ -39,4 +37,4 @@ async def test_executable_json_parse(config: Config):
 )
 def test_executable_not_executable(path):
     with pytest.raises(ValueError):
-        ExecutableHook(executable=Path(path))
+        executable_hook_factory(ExecutableHookConfig(executable=Path(path)))

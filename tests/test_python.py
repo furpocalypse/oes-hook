@@ -4,8 +4,7 @@ from typing import Any
 
 import pytest
 
-from oes.hook.python import PythonHook
-from oes.hook.types import Config, InvokeOptions
+from oes.hook import PythonHookConfig, python_hook_factory
 
 
 def example(body: dict[str, Any]) -> dict[str, Any]:
@@ -23,26 +22,21 @@ async def async_example(body: dict[str, Any]) -> dict[str, Any]:
     return new_body
 
 
-@pytest.fixture
-def config():
-    return Config(http_func=lambda c, b: b)
-
-
-@pytest.mark.asyncio
-async def test_module(config: Config):
-    module = PythonHook("tests.test_python:example")
+def test_module():
+    config = PythonHookConfig("tests.test_python:example")
+    hook = python_hook_factory(config)
     body = {"test": 1}
-    invoke_config = InvokeOptions(hook=module, config=config)
-    res = await module.invoke(body, invoke_config)
+    res = hook(body)
     assert res == {"test": 2}
 
 
 @pytest.mark.asyncio
-async def test_module_async(config: Config):
-    module = PythonHook("tests.test_python:async_example")
+async def test_module_async():
+    config = PythonHookConfig("tests.test_python:async_example")
+    hook = python_hook_factory(config)
     body = {"test": 1}
-    invoke_config = InvokeOptions(hook=module, config=config)
-    res = await module.invoke(body, invoke_config)
+    assert asyncio.iscoroutinefunction(hook)
+    res = await hook(body)
     assert res == {"test": 2}
 
 
@@ -56,4 +50,4 @@ async def test_module_async(config: Config):
 )
 def test_module_not_found(path):
     with pytest.raises(ValueError):
-        PythonHook(python=path)
+        python_hook_factory(PythonHookConfig(python=path))
