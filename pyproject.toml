@@ -4,7 +4,9 @@ version = "0.2.0"
 description = "OES hooks library"
 license = "LGPL-3.0-or-later"
 authors = [
-    "Wes <wes@anthronewengland.com>"
+    "Wes <wes@anthronewengland.com>",
+    "Anadon <anadon@furpocalypse.org>",
+    "Polar <polar@furpocalypse.org>"
 ]
 readme = "README.md"
 packages = [
@@ -12,7 +14,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
+python = ">=3.9"
 attrs = "^22.2.0"
 
 
